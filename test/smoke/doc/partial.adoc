@@ -1,0 +1,4 @@
+This paragraph comes from an included file.
+
+* item one
+* item two

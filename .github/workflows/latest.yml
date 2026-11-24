@@ -1,0 +1,64 @@
+# Runs the integration tests and E2E with the latest astro 7.x and @asciidoctor/core 4.x, to notice
+# upstream changes (such as the undocumented __ASTRO_IMAGE_ marker) before users do.
+# Also installs the published tarball into an empty project and runs astro build (npm and pnpm).
+# Runs once a week and manually (before a release, for example). Failures are reported by GitHub's
+# own notifications.
+name: Latest
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: latest
+  cancel-in-progress: true
+
+env:
+  ASTRO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  latest:
+    name: Latest astro@7 and @asciidoctor/core@4
+    timeout-minutes: 25
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: npm
+      - run: npm ci
+      # Same as make e2e-latest. package.json and the lockfile are not modified
+      - run: npm install --no-save astro@7 @asciidoctor/core@4 shiki@4
+      - run: npm ls astro @asciidoctor/core shiki || true
+      - run: npm run build
+      - run: npm test
+      - run: npm run e2e
+
+  pack:
+    name: Packed tarball (${{ matrix.manager }})
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        manager: [npm, pnpm]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: npm
+      - run: npm ci
+      # Same as make e2e-pack / make e2e-pack-pnpm (test/pack runs a pinned pnpm through npx)
+      - run: npm run test:pack
+        env:
+          PACK_MANAGER: ${{ matrix.manager }}

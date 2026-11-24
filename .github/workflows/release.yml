@@ -1,0 +1,152 @@
+# Publishes the package to npm when a tag v<version> is pushed. There is no manual approval: the
+# tag push is the release decision.
+#
+# Two jobs:
+# - build: checks the tag, runs every check, packs the tarball once, tests that tarball, and
+#   uploads it as an artifact. Read-only permissions and no secrets.
+# - publish: downloads the tarball and publishes it. No checkout and no npm ci, so no dependency
+#   code runs next to the npm token or the OIDC token.
+#
+# The publish job runs in the GitHub Environment "npm" (no required reviewers). The environment
+# only limits who can read NPM_TOKEN and which workflow the npm trusted publisher accepts. The
+# trusted publisher must name this file as "release.yml" and the environment as "npm", with
+# exactly this case.
+#
+# Authentication:
+# - 0.1.0 (the first release) is published with NPM_TOKEN, a short-lived granular access token
+#   (with "Bypass two-factor authentication", since CI cannot enter an OTP) stored as a secret of
+#   the "npm" environment. Trusted publishing cannot be used yet: npm only accepts a trusted
+#   publisher for a package that already exists.
+# - From 0.1.1, use trusted publishing (OIDC): on npmjs.com, register this repository, release.yml
+#   and the environment "npm" as the trusted publisher, then delete the NPM_TOKEN secret and
+#   revoke the token. Do not postpone this: npm ends publishing with tokens directly in January
+#   2027. This workflow does not need to change: npm (11.5.1 or later) always tries the OIDC token
+#   exchange first and uses the token it gets; when the exchange fails (no trusted publisher yet),
+#   it falls back to NODE_AUTH_TOKEN.
+#
+# No npm cache in this workflow, so a poisoned cache cannot reach a release.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+# One release at a time; never cancel a publish that has started
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  ASTRO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  build:
+    name: Check, test and pack
+    # Never run in forks
+    if: github.repository == 's8a-uk/astro-loader-asciidoc'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    outputs:
+      tarball: ${{ steps.pack.outputs.tarball }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history, so that we can check that the tag is on main
+          fetch-depth: 0
+      - name: Check that the tag matches the version in package.json
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${version}"
+            exit 1
+          fi
+      - name: Check that the tagged commit is on main
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "::error::Tag ${GITHUB_REF_NAME} (${GITHUB_SHA}) is not on main"
+            exit 1
+          fi
+      - name: Check that CHANGELOG.md has a dated section for the version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # "## [0.1.0] - 2026-12-01"; "## [0.1.0] - Unreleased" does not match
+          if ! grep -qE "^## \[${version//./\\.}\] - [0-9]{4}-[0-9]{2}-[0-9]{2}\$" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no dated section for ${version} (## [${version}] - YYYY-MM-DD)"
+            exit 1
+          fi
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run e2e
+      # prepack removes dist and builds it again. This is the only build of the published files
+      - name: Pack
+        id: pack
+        run: |
+          mkdir -p "${RUNNER_TEMP}/package"
+          file="$(npm pack --silent --pack-destination "${RUNNER_TEMP}/package" | tail -n 1)"
+          echo "tarball=${file}" >> "${GITHUB_OUTPUT}"
+      - name: Test the tarball (npm)
+        run: npm run test:pack
+        env:
+          PACK_TARBALL: ${{ runner.temp }}/package/${{ steps.pack.outputs.tarball }}
+      - name: Test the tarball (pnpm)
+        run: npm run test:pack
+        env:
+          PACK_TARBALL: ${{ runner.temp }}/package/${{ steps.pack.outputs.tarball }}
+          PACK_MANAGER: pnpm
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package
+          path: ${{ runner.temp }}/package/${{ steps.pack.outputs.tarball }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish to npm
+    needs: build
+    if: github.repository == 's8a-uk/astro-loader-asciidoc'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # For provenance, and for trusted publishing (OIDC) from 0.1.1
+    steps:
+      # Trusted publishing needs Node 22.14.0 or later and npm 11.5.1 or later
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          package-manager-cache: false
+          # Writes an .npmrc that reads the token from NODE_AUTH_TOKEN
+          registry-url: "https://registry.npmjs.org"
+      - name: Check the npm version
+        run: |
+          required=11.5.1
+          current="$(npm --version)"
+          if [ "$(printf '%s\n' "${required}" "${current}" | sort -V | head -n 1)" != "${required}" ]; then
+            echo "::error::npm ${current} is older than ${required}"
+            exit 1
+          fi
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package
+          path: ${{ runner.temp }}/package
+      # The tarball tested in the build job. --ignore-scripts: no lifecycle scripts run here
+      - name: Publish
+        run: npm publish "${RUNNER_TEMP}/package/${TARBALL}" --provenance --access public --ignore-scripts
+        env:
+          TARBALL: ${{ needs.build.outputs.tarball }}
+          # Empty once the secret is deleted; then only trusted publishing (OIDC) can publish
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

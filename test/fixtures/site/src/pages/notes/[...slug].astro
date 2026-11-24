@@ -1,0 +1,28 @@
+---
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const notes = await getCollection('notes');
+  return notes.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{entry.data.title}</title>
+    {entry.data.description && <meta name="description" content={entry.data.description} />}
+  </head>
+  <body>
+    <h1>{entry.data.title}</h1>
+    <p id="meta" data-date={entry.data.date.toISOString()} data-tags={entry.data.tags.join('|')} data-draft={String(entry.data.draft)}></p>
+    <nav>
+      <ul id="toc">
+        {headings.map((h) => <li data-depth={h.depth}><a href={`#${h.slug}`}>{h.text}</a></li>)}
+      </ul>
+    </nav>
+    <article><Content /></article>
+  </body>
+</html>

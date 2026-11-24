@@ -1,0 +1,44 @@
+# Development containers. The Makefile uses them with docker compose run --rm, so no containers are
+# left behind.
+# The Node version and the node_modules volume are chosen with environment variables:
+#   NODE_VERSION: the Node version (node:<version>-bookworm-slim). Default: 26
+#   NODE_MODULES: the named volume for node_modules. Default: node_modules (shared by all Node
+#                 versions).
+#                 latest and min reinstall dependencies, so they use their own volumes
+x-node: &node
+  build:
+    context: .
+    dockerfile: Dockerfile.dev
+    args:
+      UID: "${UID:-1000}"
+      GID: "${GID:-1000}"
+      NODE_VERSION: "${NODE_VERSION:-26}"
+  image: "astro-loader-asciidoc-dev:node-${NODE_VERSION:-26}"
+  user: "${UID:-1000}:${GID:-1000}"
+  working_dir: /workspace
+  environment:
+    HOME: /tmp/home
+    ASTRO_TELEMETRY_DISABLED: "1"
+  init: true
+  volumes:
+    - .:/workspace
+    - "${NODE_MODULES:-node_modules}:/workspace/node_modules"
+
+services:
+  # Used by the make targets as docker compose run --rm node <command>
+  node:
+    <<: *node
+
+  # Service for trying the loader in astro dev (start with make dev, stop with make dev-stop).
+  # Copies test/fixtures/site to tmp/dev-server/ and runs there (so it does not share .astro with
+  # the E2E tests)
+  dev:
+    <<: *node
+    profiles: ["dev"]
+    ports: ["127.0.0.1:${DEV_PORT:-4321}:4321"]
+    command: node test/dev/serve.mjs
+
+volumes:
+  node_modules:
+  node_modules_latest:
+  node_modules_min:

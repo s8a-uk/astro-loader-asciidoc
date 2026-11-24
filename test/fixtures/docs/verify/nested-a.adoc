@@ -1,0 +1,3 @@
+Text from nested-a.adoc.
+
+include::shared/nested-b.adoc[]

@@ -1,0 +1,32 @@
+= Include Tracking
+:experimental:
+
+== AsciiDoc include
+
+include::partial.adoc[]
+
+== Source include
+
+[source,js]
+----
+include::code.js[]
+----
+
+== Nested include
+
+include::nested-a.adoc[]
+
+== Tagged include
+
+include::tagged.adoc[tag=keep]
+
+== Lines include
+
+[source,js]
+----
+include::code.js[lines=1..2]
+----
+
+== Missing include
+
+include::missing.adoc[]

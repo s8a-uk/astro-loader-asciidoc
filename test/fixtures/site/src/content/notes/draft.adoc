@@ -1,0 +1,5 @@
+= Draft Note
+:date: 2026-11-16
+:draft:
+
+Work in progress.

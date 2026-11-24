@@ -1,0 +1,23 @@
+---
+import { getCollection } from 'astro:content';
+
+const notes = (await getCollection('notes')).sort((a, b) => a.id.localeCompare(b.id));
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Notes</title>
+  </head>
+  <body>
+    <h1>Notes</h1>
+    <ul id="notes">
+      {
+        notes.map((note) => (
+          <li data-id={note.id} data-draft={String(note.data.draft)}>
+            <a href={`/notes/${note.id}/`}>{note.data.title}</a>
+          </li>
+        ))
+      }
+    </ul>
+  </body>
+</html>

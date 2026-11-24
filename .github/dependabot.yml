@@ -1,0 +1,29 @@
+# Dependency updates. Pull requests are not merged automatically
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # Wait a week after a release before proposing it, so that broken or malicious releases are
+    # more likely to be caught (and yanked) first
+    cooldown:
+      default-days: 7
+    groups:
+      # astro and @asciidoctor/core each get their own pull request, so that when E2E fails it is
+      # clear which update caused it (excluded from the group, they get one pull request per
+      # dependency). Everything else is grouped into one pull request
+      dependencies:
+        patterns: ["*"]
+        exclude-patterns: ["astro", "@asciidoctor/core"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Wait a week after a release before proposing it, so that broken or malicious releases are
+    # more likely to be caught (and yanked) first
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]

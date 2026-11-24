@@ -1,0 +1,6 @@
+// tag::keep[]
+Text inside the keep tag.
+// end::keep[]
+// tag::drop[]
+Text inside the drop tag.
+// end::drop[]

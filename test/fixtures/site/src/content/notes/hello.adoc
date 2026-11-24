@@ -1,0 +1,39 @@
+= Hello AsciiDoc
+:date: 2026-11-17
+:tags: astro, asciidoc
+:description: Fish & Chips <small> "quoted"
+
+== Hello World
+
+A paragraph with *strong* text.
+
+=== Source Code
+
+[source,js]
+----
+const answer = 42; // <1>
+console.log(answer);
+----
+<1> The answer.
+
+== Included Content
+
+include::_partial.adoc[]
+
+include::_parts/aside.adoc[]
+
+== Diagram
+
+[mermaid]
+....
+graph TD
+  A --> B
+....
+
+== Images
+
+image::diagram.png[A "quoted" & ampersand alt,width=160]
+
+An inline image:diagram.png[Inline copy,40] next to text.
+
+image::https://example.com/remote.png[Remote]

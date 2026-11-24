@@ -1,0 +1,38 @@
+= Smoke Test Document
+Jane Doe <jane@example.com>
+:revdate: 2026-11-17
+:tags: smoke, node
+
+== Introduction
+
+This document exercises *strong*, _emphasis_, `monospace` and a link:https://example.com[link].
+
+NOTE: Admonitions should render as a table.
+
+=== Source code
+
+[source,js]
+----
+const answer = 42; // <1>
+console.log(answer);
+----
+<1> The answer.
+
+== Included content
+
+include::partial.adoc[]
+
+[source,js]
+----
+include::example.js[]
+----
+
+== Table
+
+[cols="1,2"]
+|===
+| Name | Value
+
+| alpha | 1
+| beta  | 2
+|===

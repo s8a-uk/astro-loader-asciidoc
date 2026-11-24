@@ -1,0 +1,5 @@
+= Article In Subdirectory
+
+include::sibling.adoc[]
+
+include::../partial.adoc[]

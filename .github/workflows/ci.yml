@@ -1,0 +1,102 @@
+# Runs lint, type checks, unit and integration tests, and E2E on pushes to main and on pull
+# requests (pushes to other branches and tags are covered by their pull requests).
+# The development containers are not used here: the runner has no host environment to protect,
+# and setup-node installs Node and caches npm, so the npm scripts are called directly.
+# They are the same scripts the Makefile targets call (make test = npm test,
+# make e2e = npm run build && npm run e2e).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ASTRO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  lint:
+    name: Lint and type check
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+
+  test:
+    name: Test (Node ${{ matrix.node }})
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22.12.0 is the lower bound of engines.node (NODE_LOWER in make check)
+        node: ["22.12.0", "24", "26"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - name: Smoke test
+        run: npm run smoke > /dev/null
+      - run: npm test
+
+  e2e:
+    name: E2E (Node ${{ matrix.node }})
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22.23.4: the lowest Node the Astro in the lockfile requires (NODE_E2E_LOWER in make check)
+        node: ["22.23.4", "26"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run e2e
+
+  e2e-min:
+    name: E2E with the lowest supported dependencies
+    timeout-minutes: 25
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22.23.4"
+          cache: npm
+      - run: npm ci
+      # Same as make e2e-min: reinstall the lowest supported peer dependencies and @asciidoctor/core
+      - run: npm install --no-save astro@7.4.0 shiki@4.6.0 @asciidoctor/core@4.2.1
+      - run: npm ls astro @asciidoctor/core shiki || true
+      - run: npm run build
+      - run: npm test
+      - run: npm run e2e

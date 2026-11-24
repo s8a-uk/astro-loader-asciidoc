@@ -1,0 +1,8 @@
+= Inner Note
+:date: 2026-11-15
+:imagesdir: images
+:draft: false
+
+== Photo
+
+image::photo.png[Photo in a subdirectory]

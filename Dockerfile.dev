@@ -1,0 +1,19 @@
+ARG NODE_VERSION=26
+FROM node:${NODE_VERSION}-bookworm-slim
+
+# git: test/unit/no-japanese.test.ts lists the repository files with git ls-files
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git \
+  && rm -rf /var/lib/apt/lists/*
+
+# uid / gid of the host user, used to give the named volumes the same owner
+ARG UID=1000
+ARG GID=1000
+
+# An empty named volume takes the owner of the same path in the image when it is first mounted.
+# Owning these paths by the host user in advance avoids a chown as root
+RUN mkdir -p /workspace/node_modules /tmp/home \
+  && chown "${UID}:${GID}" /workspace/node_modules /tmp/home
+
+WORKDIR /workspace
+ENV npm_config_update_notifier=false
