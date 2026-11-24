@@ -11,8 +11,8 @@ import {
   cpSync,
   existsSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -132,18 +132,20 @@ describe(`tarball E2E (${manager})`, () => {
       checkOutput();
     });
 
-    // pnpm resolves the optional peer shiki to the shiki Astro depends on and links it into this
-    // package's node_modules (the directory name gets _shiki@<version>). The same with hoist=false
+    // pnpm resolves the optional peer shiki to the shiki Astro depends on and links it next to this
+    // package in its virtual store directory. The same with hoist=false. The directory name is not
+    // checked: pnpm shortens long names (such as a tarball path) to a hash
     it('resolves shiki as a peer of this package with hoist=false, without installing it', () => {
       writeFileSync(join(siteDir, '.npmrc'), 'hoist=false\n');
       rmSync(join(siteDir, 'node_modules'), { recursive: true, force: true });
       rmSync(join(siteDir, 'dist'), { recursive: true, force: true });
       pm(['install']);
       expect(existsSync(join(siteDir, 'node_modules/.pnpm/node_modules/shiki'))).toBe(false);
-      const linked = readdirSync(join(siteDir, 'node_modules/.pnpm')).find((name) =>
-        name.startsWith('@s8a-uk+astro-loader-asciidoc'),
-      );
-      expect(linked).toContain(`_shiki@${shikiVersion}`);
+      // <store>/<entry>/node_modules/@s8a-uk/astro-loader-asciidoc -> <store>/<entry>/node_modules
+      const installed = realpathSync(join(siteDir, 'node_modules', manifest.name));
+      const peer = join(installed, '..', '..', 'shiki', 'package.json');
+      expect(existsSync(peer)).toBe(true);
+      expect(JSON.parse(readFileSync(peer, 'utf8')).version).toBe(shikiVersion);
       const result = build();
       expect(result.status, result.output).toBe(0);
       checkOutput();
