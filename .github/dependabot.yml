@@ -16,6 +16,11 @@ updates:
       dependencies:
         patterns: ["*"]
         exclude-patterns: ["astro", "@asciidoctor/core"]
+    ignore:
+      # @types/node follows the lowest supported Node version (engines.node), so that type
+      # checking catches APIs that do not exist there. Raise it together with engines.node
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
